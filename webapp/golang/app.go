@@ -30,6 +30,9 @@ import (
 var (
 	db    *sqlx.DB
 	store *gsm.MemcacheStore
+	accountRegExp = regexp.MustCompile("\\A[0-9a-zA-Z_]{3,}\\z")
+	passwordRegExp = regexp.MustCompile("\\A[0-9a-zA-Z_]{6,}\\z")
+	accNameRegExp = regexp.MustCompile(`^/@(?P<accountName>[a-zA-Z]+)$`)
 )
 
 const (
@@ -108,8 +111,8 @@ func tryLogin(accountName, password string) *User {
 }
 
 func validateUser(accountName, password string) bool {
-	if !(regexp.MustCompile("\\A[0-9a-zA-Z_]{3,}\\z").MatchString(accountName) &&
-		regexp.MustCompile("\\A[0-9a-zA-Z_]{6,}\\z").MatchString(password)) {
+	if !(accountRegExp.MatchString(accountName) &&
+		passwordRegExp.MatchString(password)) {
 		return false
 	}
 
@@ -831,7 +834,7 @@ func main() {
 	goji.Post("/register", postRegister)
 	goji.Get("/logout", getLogout)
 	goji.Get("/", getIndex)
-	goji.Get(regexp.MustCompile(`^/@(?P<accountName>[a-zA-Z]+)$`), getAccountName)
+	goji.Get(accNameRegExp, getAccountName)
 	goji.Get("/posts", getPosts)
 	goji.Get("/posts/:id", getPostsID)
 	goji.Post("/", postIndex)
