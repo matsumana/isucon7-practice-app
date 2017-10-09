@@ -190,9 +190,9 @@ func makePosts(results []Post, CSRFToken string, allComments bool) ([]Post, erro
 			return nil, err
 		}
 
-		query := "SELECT * FROM `comments` WHERE `post_id` = ? ORDER BY `created_at` DESC"
+		query := "SELECT * FROM `comments` WHERE `post_id` = ? ORDER BY `created_at`"
 		if !allComments {
-			query += " LIMIT 3"
+			query += " DESC LIMIT 3"
 		}
 		var comments []Comment
 		cerr := db.Select(&comments, query, p.ID)
@@ -208,8 +208,10 @@ func makePosts(results []Post, CSRFToken string, allComments bool) ([]Post, erro
 		}
 
 		// reverse
-		for i, j := 0, len(comments)-1; i < j; i, j = i+1, j-1 {
-			comments[i], comments[j] = comments[j], comments[i]
+		if !allComments {
+			for i, j := 0, len(comments)-1; i < j; i, j = i+1, j-1 {
+				comments[i], comments[j] = comments[j], comments[i]
+			}
 		}
 
 		p.Comments = comments
@@ -389,6 +391,7 @@ func getLogout(w http.ResponseWriter, r *http.Request) {
 
 func getIndex(w http.ResponseWriter, r *http.Request) {
 	me := getSessionUser(r)
+	token := getCSRFToken(r)
 
 	results := []Post{}
 
@@ -398,7 +401,7 @@ func getIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	posts, merr := makePosts(results, getCSRFToken(r), false)
+	posts, merr := makePosts(results, token, false)
 	if merr != nil {
 		fmt.Println(merr)
 		return
@@ -418,7 +421,7 @@ func getIndex(w http.ResponseWriter, r *http.Request) {
 		Me        User
 		CSRFToken string
 		Flash     string
-	}{posts, me, getCSRFToken(r), getFlash(w, r, "notice")})
+	}{posts, me, token, getFlash(w, r, "notice")})
 }
 
 func getAccountName(c web.C, w http.ResponseWriter, r *http.Request) {
