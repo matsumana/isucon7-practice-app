@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"database/sql"
 	"github.com/bradfitz/gomemcache/memcache"
 	gsm "github.com/bradleypeabody/gorilla-sessions-memcache"
 	_ "github.com/go-sql-driver/mysql"
@@ -218,7 +219,7 @@ func makePosts(results []Post, CSRFToken string, allComments bool) ([]Post, erro
 
 	for _, p := range results {
 		err := db.Get(&p.CommentCount, "SELECT `count` FROM `comment_count` WHERE `post_id` = ?", p.ID)
-		if err != nil {
+		if err != nil && err != sql.ErrNoRows {
 			return nil, err
 		}
 
