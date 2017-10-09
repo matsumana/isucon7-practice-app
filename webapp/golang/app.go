@@ -13,7 +13,6 @@ import (
 	"os"
 	"os/exec"
 	"path"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -24,7 +23,6 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gorilla/sessions"
 	"github.com/jmoiron/sqlx"
-	"github.com/satori/go.uuid"
 	"github.com/zenazn/goji"
 	"github.com/zenazn/goji/web"
 )
@@ -66,7 +64,6 @@ var (
 		getTemplPath("layout.html"),
 		getTemplPath("register.html")),
 	)
-	imageDir = path.Join(getCwd(), "..", "public", "image")
 )
 
 const (
@@ -90,7 +87,7 @@ type User struct {
 type Post struct {
 	ID           int       `db:"id"`
 	UserID       int       `db:"user_id"`
-	ImageID      string    `db:"image_id"`
+	Imgdata      []byte    `db:"imgdata"`
 	Body         string    `db:"body"`
 	Mime         string    `db:"mime"`
 	CreatedAt    time.Time `db:"created_at"`
@@ -112,14 +109,6 @@ type Comment struct {
 func init() {
 	memcacheClient := memcache.New("localhost:11211")
 	store = gsm.NewMemcacheStore(memcacheClient, "isucogram_", []byte("sendagaya"))
-}
-
-func getCwd() string {
-	ex, err := os.Executable()
-	if err != nil {
-		panic(err)
-	}
-	return filepath.Dir(ex)
 }
 
 func dbInitialize() {
@@ -276,7 +265,16 @@ func makePosts(results []Post, CSRFToken string, allComments bool) ([]Post, erro
 }
 
 func imageURL(p Post) string {
-	return "/image/" + p.ImageID
+	ext := ""
+	if p.Mime == "image/jpeg" {
+		ext = ".jpg"
+	} else if p.Mime == "image/png" {
+		ext = ".png"
+	} else if p.Mime == "image/gif" {
+		ext = ".gif"
+	}
+
+	return "/image/" + fmt.Sprint(p.ID) + ext
 }
 
 func isLogin(u User) bool {
@@ -616,18 +614,14 @@ func postIndex(w http.ResponseWriter, r *http.Request) {
 	}
 
 	mime := ""
-	ext := "."
 	if file != nil {
 		// 投稿のContent-Typeからファイルのタイプを決定する
 		contentType := header.Header["Content-Type"][0]
 		if strings.Contains(contentType, "jpeg") {
-			ext += "jpeg"
 			mime = "image/jpeg"
 		} else if strings.Contains(contentType, "png") {
-			ext += "png"
 			mime = "image/png"
 		} else if strings.Contains(contentType, "gif") {
-			ext += "gif"
 			mime = "image/gif"
 		} else {
 			session := getSession(r)
@@ -653,28 +647,12 @@ func postIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Save image file
-	imageID := uuid.NewV4().String() + ext
-	savedFileName := path.Join(imageDir, imageID)
-	imageF, err := os.Create(savedFileName)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Println("failed to create saved image file: ", err.Error())
-		return
-	}
-	if _, err := imageF.Write(filedata); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Println("failed to save image file: ", err.Error())
-		return
-	}
-	fmt.Println("saved image file at", savedFileName)
-
-	query := "INSERT INTO `posts` (`user_id`, `image_id`, `mime`, `body`) VALUES (?,?,?,?)"
+	query := "INSERT INTO `posts` (`user_id`, `mime`, `imgdata`, `body`) VALUES (?,?,?,?)"
 	result, eerr := db.Exec(
 		query,
 		me.ID,
-		imageID,
 		mime,
+		filedata,
 		r.FormValue("body"),
 	)
 	if eerr != nil {
@@ -688,8 +666,39 @@ func postIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, fmt.Sprintf("/posts/%d", pid), http.StatusFound)
+	http.Redirect(w, r, "/posts/"+strconv.FormatInt(pid, 10), http.StatusFound)
 	return
+}
+
+func getImage(c web.C, w http.ResponseWriter, r *http.Request) {
+	pidStr := c.URLParams["id"]
+	pid, err := strconv.Atoi(pidStr)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	post := Post{}
+	derr := db.Get(&post, "SELECT * FROM `posts` WHERE `id` = ?", pid)
+	if derr != nil {
+		fmt.Println(derr.Error())
+		return
+	}
+
+	ext := c.URLParams["ext"]
+
+	if ext == "jpg" && post.Mime == "image/jpeg" ||
+		ext == "png" && post.Mime == "image/png" ||
+		ext == "gif" && post.Mime == "image/gif" {
+		w.Header().Set("Content-Type", post.Mime)
+		_, err := w.Write(post.Imgdata)
+		if err != nil {
+			fmt.Println(err.Error())
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusNotFound)
 }
 
 func postComment(w http.ResponseWriter, r *http.Request) {
@@ -818,6 +827,7 @@ func main() {
 	goji.Get("/posts", getPosts)
 	goji.Get("/posts/:id", getPostsID)
 	goji.Post("/", postIndex)
+	goji.Get("/image/:id.:ext", getImage)
 	goji.Post("/comment", postComment)
 	goji.Get("/admin/banned", getAdminBanned)
 	goji.Post("/admin/banned", postAdminBanned)
