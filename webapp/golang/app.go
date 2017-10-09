@@ -831,6 +831,5 @@ func main() {
 	goji.Post("/comment", postComment)
 	goji.Get("/admin/banned", getAdminBanned)
 	goji.Post("/admin/banned", postAdminBanned)
-	goji.Get("/*", http.FileServer(http.Dir("../public")))
 	goji.Serve()
 }
