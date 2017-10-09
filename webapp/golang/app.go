@@ -217,7 +217,7 @@ func makePosts(results []Post, CSRFToken string, allComments bool) ([]Post, erro
 	var posts []Post
 
 	for _, p := range results {
-		err := db.Get(&p.CommentCount, "SELECT `count` FROM `comments_count` WHERE `post_id` = ?", p.ID)
+		err := db.Get(&p.CommentCount, "SELECT `count` FROM `comment_count` WHERE `post_id` = ?", p.ID)
 		if err != nil {
 			return nil, err
 		}
