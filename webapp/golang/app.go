@@ -33,7 +33,37 @@ var (
 	accountRegExp  = regexp.MustCompile("\\A[0-9a-zA-Z_]{3,}\\z")
 	passwordRegExp = regexp.MustCompile("\\A[0-9a-zA-Z_]{6,}\\z")
 	accNameRegExp  = regexp.MustCompile(`^/@(?P<accountName>[a-zA-Z]+)$`)
-	layoutTempl    = template.Must(template.ParseFiles(getTemplPath("layout.html"), getTemplPath("login.html")))
+	fmap           = template.FuncMap{"imageURL": imageURL}
+	getLoginTempl  = template.Must(template.ParseFiles(getTemplPath("layout.html"), getTemplPath("login.html")))
+	getPostsTempl  = template.Must(template.New("posts.html").Funcs(fmap).ParseFiles(
+		getTemplPath("posts.html"),
+		getTemplPath("post.html"),
+	))
+	indexTempl = template.Must(template.New("layout.html").Funcs(fmap).ParseFiles(
+		getTemplPath("layout.html"),
+		getTemplPath("index.html"),
+		getTemplPath("posts.html"),
+		getTemplPath("post.html"),
+	))
+	getPostsIDTempl = template.Must(template.New("layout.html").Funcs(fmap).ParseFiles(
+		getTemplPath("layout.html"),
+		getTemplPath("post_id.html"),
+		getTemplPath("post.html"),
+	))
+	getAdminBannedTempl = template.Must(template.ParseFiles(
+		getTemplPath("layout.html"),
+		getTemplPath("banned.html")),
+	)
+	getAccountNameTempl = template.Must(template.New("layout.html").Funcs(fmap).ParseFiles(
+		getTemplPath("layout.html"),
+		getTemplPath("user.html"),
+		getTemplPath("posts.html"),
+		getTemplPath("post.html"),
+	))
+	getRegisterTempl = template.Must(template.ParseFiles(
+		getTemplPath("layout.html"),
+		getTemplPath("register.html")),
+	)
 )
 
 const (
@@ -242,7 +272,7 @@ func imageURL(p Post) string {
 		ext = ".gif"
 	}
 
-	return "/image/" + strconv.Itoa(p.ID) + ext
+	return "/image/" + fmt.Sprint(p.ID) + ext
 }
 
 func isLogin(u User) bool {
@@ -283,7 +313,7 @@ func getLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	layoutTempl.Execute(w, struct {
+	getLoginTempl.Execute(w, struct {
 		Me    User
 		Flash string
 	}{me, getFlash(w, r, "notice")})
@@ -318,10 +348,7 @@ func getRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	template.Must(template.ParseFiles(
-		getTemplPath("layout.html"),
-		getTemplPath("register.html")),
-	).Execute(w, struct {
+	getRegisterTempl.Execute(w, struct {
 		Me    User
 		Flash string
 	}{User{}, getFlash(w, r, "notice")})
@@ -404,16 +431,7 @@ func getIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmap := template.FuncMap{
-		"imageURL": imageURL,
-	}
-
-	template.Must(template.New("layout.html").Funcs(fmap).ParseFiles(
-		getTemplPath("layout.html"),
-		getTemplPath("index.html"),
-		getTemplPath("posts.html"),
-		getTemplPath("post.html"),
-	)).Execute(w, struct {
+	indexTempl.Execute(w, struct {
 		Posts     []Post
 		Me        User
 		CSRFToken string
@@ -487,16 +505,7 @@ func getAccountName(c web.C, w http.ResponseWriter, r *http.Request) {
 
 	me := getSessionUser(r)
 
-	fmap := template.FuncMap{
-		"imageURL": imageURL,
-	}
-
-	template.Must(template.New("layout.html").Funcs(fmap).ParseFiles(
-		getTemplPath("layout.html"),
-		getTemplPath("user.html"),
-		getTemplPath("posts.html"),
-		getTemplPath("post.html"),
-	)).Execute(w, struct {
+	getAccountNameTempl.Execute(w, struct {
 		Posts          []Post
 		User           User
 		PostCount      int
@@ -542,14 +551,7 @@ func getPosts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmap := template.FuncMap{
-		"imageURL": imageURL,
-	}
-
-	template.Must(template.New("posts.html").Funcs(fmap).ParseFiles(
-		getTemplPath("posts.html"),
-		getTemplPath("post.html"),
-	)).Execute(w, posts)
+	getPostsTempl.Execute(w, posts)
 }
 
 func getPostsID(c web.C, w http.ResponseWriter, r *http.Request) {
@@ -578,18 +580,9 @@ func getPostsID(c web.C, w http.ResponseWriter, r *http.Request) {
 	}
 
 	p := posts[0]
-
 	me := getSessionUser(r)
 
-	fmap := template.FuncMap{
-		"imageURL": imageURL,
-	}
-
-	template.Must(template.New("layout.html").Funcs(fmap).ParseFiles(
-		getTemplPath("layout.html"),
-		getTemplPath("post_id.html"),
-		getTemplPath("post.html"),
-	)).Execute(w, struct {
+	getPostsIDTempl.Execute(w, struct {
 		Post Post
 		Me   User
 	}{p, me})
@@ -748,10 +741,7 @@ func getAdminBanned(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	template.Must(template.ParseFiles(
-		getTemplPath("layout.html"),
-		getTemplPath("banned.html")),
-	).Execute(w, struct {
+	getAdminBannedTempl.Execute(w, struct {
 		Users     []User
 		Me        User
 		CSRFToken string
