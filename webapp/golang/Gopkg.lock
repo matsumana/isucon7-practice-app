@@ -44,12 +44,6 @@
   revision = "d9bd385d68c068f1fabb5057e3dedcbcbb039d0f"
 
 [[projects]]
-  name = "github.com/satori/go.uuid"
-  packages = ["."]
-  revision = "879c5887cd475cd7864858769793b2ceb0d44feb"
-  version = "v1.1.0"
-
-[[projects]]
   name = "github.com/zenazn/goji"
   packages = [".","bind","graceful","graceful/listener","web","web/middleware","web/mutil"]
   revision = "64eb34159fe53473206c2b3e70fe396a639452f2"
@@ -58,6 +52,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "b4e3995086825132984bbfd4c0a0ef6f86fbf08be9de315119a4988844c40ac2"
+  inputs-digest = "ae1c9d6675f9aec0e1dbb02329e98772f562e6848e039096ea3edf1a8edb3b2f"
   solver-name = "gps-cdcl"
   solver-version = 1
