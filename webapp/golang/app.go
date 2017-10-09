@@ -389,6 +389,7 @@ func getLogout(w http.ResponseWriter, r *http.Request) {
 
 func getIndex(w http.ResponseWriter, r *http.Request) {
 	me := getSessionUser(r)
+	token := getCSRFToken(r)
 
 	results := []Post{}
 
@@ -398,7 +399,7 @@ func getIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	posts, merr := makePosts(results, getCSRFToken(r), false)
+	posts, merr := makePosts(results, token, false)
 	if merr != nil {
 		fmt.Println(merr)
 		return
@@ -418,7 +419,7 @@ func getIndex(w http.ResponseWriter, r *http.Request) {
 		Me        User
 		CSRFToken string
 		Flash     string
-	}{posts, me, getCSRFToken(r), getFlash(w, r, "notice")})
+	}{posts, me, token, getFlash(w, r, "notice")})
 }
 
 func getAccountName(c web.C, w http.ResponseWriter, r *http.Request) {
