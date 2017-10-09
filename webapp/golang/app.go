@@ -103,7 +103,7 @@ type Comment struct {
 	UserID    int       `db:"user_id"`
 	Comment   string    `db:"comment"`
 	CreatedAt time.Time `db:"created_at"`
-	User      User
+	User      User      `db:"user"`
 }
 
 func init() {
@@ -222,7 +222,7 @@ func makePosts(results []Post, CSRFToken string, allComments bool) ([]Post, erro
 			return nil, err
 		}
 
-		query := "SELECT * FROM `comments` WHERE `post_id` = ? ORDER BY `created_at`"
+		query := `SELECT c.*, u.id "user.id", u.account_name "user.account_name", u.passhash "user.passhash", u.authority "user.authority", u.del_flg "user.del_flg", u.created_at "user.created_at" FROM comments c LEFT JOIN users u ON c.user_id = u.id WHERE c.post_id = ? ORDER BY c.created_at`
 		if !allComments {
 			query += " DESC LIMIT 3"
 		}
@@ -230,13 +230,6 @@ func makePosts(results []Post, CSRFToken string, allComments bool) ([]Post, erro
 		cerr := db.Select(&comments, query, p.ID)
 		if cerr != nil {
 			return nil, cerr
-		}
-
-		for i := 0; i < len(comments); i++ {
-			uerr := db.Get(&comments[i].User, "SELECT * FROM `users` WHERE `id` = ?", comments[i].UserID)
-			if uerr != nil {
-				return nil, uerr
-			}
 		}
 
 		// reverse
