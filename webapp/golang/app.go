@@ -64,6 +64,7 @@ var (
 		getTemplPath("layout.html"),
 		getTemplPath("register.html")),
 	)
+	posts = make(map[int]Post)
 )
 
 const (
@@ -681,10 +682,16 @@ func getImage(c web.C, w http.ResponseWriter, r *http.Request) {
 	}
 
 	post := Post{}
-	derr := db.Get(&post, "SELECT * FROM `posts` WHERE `id` = ?", pid)
-	if derr != nil {
-		fmt.Println(derr.Error())
-		return
+	if p, exist := posts[pid]; exist {
+		post = p
+	} else {
+		derr := db.Get(&post, "SELECT * FROM `posts` WHERE `id` = ?", pid)
+		if derr != nil {
+			fmt.Println(derr.Error())
+			return
+		}
+
+		posts[pid] = post
 	}
 
 	ext := c.URLParams["ext"]
