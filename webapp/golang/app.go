@@ -28,11 +28,12 @@ import (
 )
 
 var (
-	db    *sqlx.DB
-	store *gsm.MemcacheStore
-	accountRegExp = regexp.MustCompile("\\A[0-9a-zA-Z_]{3,}\\z")
+	db             *sqlx.DB
+	store          *gsm.MemcacheStore
+	accountRegExp  = regexp.MustCompile("\\A[0-9a-zA-Z_]{3,}\\z")
 	passwordRegExp = regexp.MustCompile("\\A[0-9a-zA-Z_]{6,}\\z")
-	accNameRegExp = regexp.MustCompile(`^/@(?P<accountName>[a-zA-Z]+)$`)
+	accNameRegExp  = regexp.MustCompile(`^/@(?P<accountName>[a-zA-Z]+)$`)
+	layoutTempl    = template.Must(template.ParseFiles(getTemplPath("layout.html"), getTemplPath("login.html")))
 )
 
 const (
@@ -96,18 +97,17 @@ func dbInitialize() {
 
 func tryLogin(accountName, password string) *User {
 	u := User{}
-	err := db.Get(&u, "SELECT * FROM users WHERE account_name = ? AND del_flg = 0", accountName)
+	err := db.Get(&u, "SELECT id, account_name, passhash FROM users WHERE account_name = ? AND del_flg = 0", accountName)
 	if err != nil {
+		log.Print("failed tryLogin ", err.Error())
 		return nil
 	}
 
 	if &u != nil && calculatePasshash(u.AccountName, password) == u.Passhash {
 		return &u
-	} else if &u == nil {
-		return nil
-	} else {
-		return nil
 	}
+
+	return nil
 }
 
 func validateUser(accountName, password string) bool {
@@ -174,11 +174,11 @@ func getFlash(w http.ResponseWriter, r *http.Request, key string) string {
 
 	if !ok || value == nil {
 		return ""
-	} else {
-		delete(session.Values, key)
-		session.Save(r, w)
-		return value.(string)
 	}
+
+	delete(session.Values, key)
+	session.Save(r, w)
+	return value.(string)
 }
 
 func makePosts(results []Post, CSRFToken string, allComments bool) ([]Post, error) {
@@ -278,42 +278,38 @@ func getInitialize(w http.ResponseWriter, r *http.Request) {
 func getLogin(w http.ResponseWriter, r *http.Request) {
 	me := getSessionUser(r)
 
-	if isLogin(me) {
+	if me.ID != 0 {
 		http.Redirect(w, r, "/", http.StatusFound)
 		return
 	}
 
-	template.Must(template.ParseFiles(
-		getTemplPath("layout.html"),
-		getTemplPath("login.html")),
-	).Execute(w, struct {
+	layoutTempl.Execute(w, struct {
 		Me    User
 		Flash string
 	}{me, getFlash(w, r, "notice")})
 }
 
 func postLogin(w http.ResponseWriter, r *http.Request) {
-	if isLogin(getSessionUser(r)) {
+	user := getSessionUser(r)
+	if user.ID != 0 {
 		http.Redirect(w, r, "/", http.StatusFound)
 		return
 	}
 
 	u := tryLogin(r.FormValue("account_name"), r.FormValue("password"))
 
+	var redirectTo string
+	session := getSession(r)
 	if u != nil {
-		session := getSession(r)
 		session.Values["user_id"] = u.ID
 		session.Values["csrf_token"] = secureRandomStr(16)
-		session.Save(r, w)
-
-		http.Redirect(w, r, "/", http.StatusFound)
+		redirectTo = "/"
 	} else {
-		session := getSession(r)
 		session.Values["notice"] = "アカウント名かパスワードが間違っています"
-		session.Save(r, w)
-
-		http.Redirect(w, r, "/login", http.StatusFound)
+		redirectTo = "/login"
 	}
+	session.Save(r, w)
+	http.Redirect(w, r, redirectTo, http.StatusFound)
 }
 
 func getRegister(w http.ResponseWriter, r *http.Request) {
