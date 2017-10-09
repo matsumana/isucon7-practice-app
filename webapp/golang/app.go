@@ -116,6 +116,8 @@ func dbInitialize() {
 		"DELETE FROM users WHERE id > 1000",
 		"DELETE FROM posts WHERE id > 10000",
 		"DELETE FROM comments WHERE id > 100000",
+		"TRUNCATE TABLE comment_count",
+		"INSERT INTO `comment_count` (`post_id`, `count`) SELECT `post_id`, COUNT(*) AS `count` FROM `comments` GROUP BY `post_id` ORDER BY 1",
 		"UPDATE users SET del_flg = 0",
 		"UPDATE users SET del_flg = 1 WHERE id % 50 = 0",
 	}
@@ -215,7 +217,7 @@ func makePosts(results []Post, CSRFToken string, allComments bool) ([]Post, erro
 	var posts []Post
 
 	for _, p := range results {
-		err := db.Get(&p.CommentCount, "SELECT COUNT(*) AS `count` FROM `comments` WHERE `post_id` = ?", p.ID)
+		err := db.Get(&p.CommentCount, "SELECT `count` FROM `comments_count` WHERE `post_id` = ?", p.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -721,6 +723,11 @@ func postComment(w http.ResponseWriter, r *http.Request) {
 
 	query := "INSERT INTO `comments` (`post_id`, `user_id`, `comment`) VALUES (?,?,?)"
 	db.Exec(query, postID, me.ID, r.FormValue("comment"))
+
+	addCommentCntQuery := "INSERT INTO `comment_count` (`post_id`, `count`) " +
+		"SELECT `post_id`, COUNT(*) AS `count` FROM `comments` GROUP BY `post_id` WHERE `post_id` = ? " +
+		"ON DUPLICATE KEY UPDATE `post_id` = ?, `count` = `count` + 1"
+	db.Exec(addCommentCntQuery, postID, postID)
 
 	http.Redirect(w, r, fmt.Sprintf("/posts/%d", postID), http.StatusFound)
 }
