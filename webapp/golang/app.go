@@ -3,6 +3,7 @@ package main
 import (
 	crand "crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -104,6 +105,19 @@ type Comment struct {
 	Comment   string    `db:"comment"`
 	CreatedAt time.Time `db:"created_at"`
 	User      User
+}
+
+type CommentAndUser struct {
+	ID              int       `db:"id"`
+	PostID          int       `db:"post_id"`
+	UserID          int       `db:"user_id"`
+	Comment         string    `db:"comment"`
+	CreatedAt       time.Time `db:"created_at"`
+	UserAccountName string    `db:"user_account_name"`
+	UserPasshash    string    `db:"user_passhash"`
+	UserAuthority   int       `db:"user_authority"`
+	UserDelFlg      int       `db:"user_del_flg"`
+	UserCreatedAt   time.Time `db:"user_created_at"`
 }
 
 func init() {
@@ -220,35 +234,55 @@ func makePosts(results []Post, CSRFToken string, allComments bool) ([]Post, erro
 			return nil, err
 		}
 
-		query := "SELECT * FROM `comments` WHERE `post_id` = ? ORDER BY `created_at`"
+		query := "SELECT c.id as id, c.post_id as post_id, c.user_id as user_id, c.comment as comment, c.created_at as created_at, u.account_name as user_account_name, u.passhash as user_passhash, u.authority as user_authority, u.del_flg as user_del_flg, u.created_at as user_created_at FROM `comments` c INNER JOIN users u ON c.user_id = u.id WHERE `post_id` = ? ORDER BY `created_at`"
 		if !allComments {
 			query += " DESC LIMIT 3"
 		}
-		var comments []Comment
-		cerr := db.Select(&comments, query, p.ID)
+		var commentsAndUser []CommentAndUser
+		cerr := db.Select(&commentsAndUser, query, p.ID)
 		if cerr != nil {
 			return nil, cerr
 		}
 
-		for i := 0; i < len(comments); i++ {
-			uerr := db.Get(&comments[i].User, "SELECT * FROM `users` WHERE `id` = ?", comments[i].UserID)
-			if uerr != nil {
-				return nil, uerr
-			}
+		if len(commentsAndUser) < 1 {
+			return nil, errors.New("No such user.")
 		}
 
 		// reverse
 		if !allComments {
-			for i, j := 0, len(comments)-1; i < j; i, j = i+1, j-1 {
-				comments[i], comments[j] = comments[j], comments[i]
+			for i, j := 0, len(commentsAndUser)-1; i < j; i, j = i+1, j-1 {
+				commentsAndUser[i], commentsAndUser[j] = commentsAndUser[j], commentsAndUser[i]
 			}
 		}
 
+		comments := make([]Comment, len(commentsAndUser))
+		for i, c := range commentsAndUser {
+			comments[i] = Comment{
+				ID:        c.ID,
+				PostID:    c.PostID,
+				UserID:    c.UserID,
+				Comment:   c.Comment,
+				CreatedAt: c.CreatedAt,
+				User: User{
+					ID:          c.UserID,
+					AccountName: c.UserAccountName,
+					Passhash:    c.UserPasshash,
+					Authority:   c.UserAuthority,
+					DelFlg:      c.UserDelFlg,
+					CreatedAt:   c.UserCreatedAt,
+				},
+			}
+		}
 		p.Comments = comments
 
-		perr := db.Get(&p.User, "SELECT * FROM `users` WHERE `id` = ?", p.UserID)
-		if perr != nil {
-			return nil, perr
+		c := commentsAndUser[0]
+		p.User = User{
+			ID:          c.UserID,
+			AccountName: c.UserAccountName,
+			Passhash:    c.UserPasshash,
+			Authority:   c.UserAuthority,
+			DelFlg:      c.UserDelFlg,
+			CreatedAt:   c.UserCreatedAt,
 		}
 
 		p.CSRFToken = CSRFToken
