@@ -242,10 +242,10 @@ func makePosts(results []Post, CSRFToken string, allComments bool) ([]Post, erro
 		}
 
 		p.Comments = comments
-
-		perr := db.Get(&p.User, "SELECT * FROM `users` WHERE `id` = ?", p.UserID)
-		if perr != nil {
-			return nil, perr
+		if len(comments) > 0 {
+			p.User = comments[0].User
+		} else {
+			p.User = User{}
 		}
 
 		p.CSRFToken = CSRFToken
